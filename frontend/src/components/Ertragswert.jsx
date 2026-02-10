@@ -1,3 +1,4 @@
+// Ertragswert.jsx
 // Teil 2 – Ertragswert Berechnung
 // Berechnung:
 // Jährlicher Ertrag (€) = kWp × kWh/kWp × ct€/kWh / 100
@@ -9,45 +10,58 @@ import axios from "axios";
 function Ertragswert({ onResult }) {
   const [kwp, setKwp] = useState("");
   const [spezErtrag, setSpezErtrag] = useState("");
-  const [vergütung, setVergütung] = useState("");
+  const [verguetung, setVerguetung] = useState("");
   const [restlaufzeit, setRestlaufzeit] = useState("");
   const [jahresertrag, setJahresertrag] = useState(null);
   const [ertragswert, setErtragswert] = useState(null);
 
   const calculateErtragswert = async () => {
+    // Convertir valores a número
     const k = parseFloat(kwp);
     const se = parseFloat(spezErtrag);
-    const v = parseFloat(vergütung);
+    const v = parseFloat(verguetung);
     const rl = parseFloat(restlaufzeit);
 
+    // Validar que sean números
     if (isNaN(k) || isNaN(se) || isNaN(v) || isNaN(rl)) {
       alert("Bitte gültige Zahlen eingeben!");
       return;
     }
 
     try {
-      const response = await axios.post(`${import.meta.env.VITE_BACKEND_URL}/buchwert`,
-  {
-        anlagengroesse: k,
-        spezifischer_ertrag: se,
-        einspeiseverguetung: v,
-        restlaufzeit: rl,
-      });
+      // Depuración: ver qué URL se está usando
+      console.log("Backend URL:", import.meta.env.VITE_BACKEND_URL);
 
-      // Actualizar resultados
-      setJahresertrag(response.data.jahresertrag.toFixed(2));
-      setErtragswert(response.data.ertragswert.toFixed(2));
+      // Petición POST al backend
+      const response = await axios.post(
+        `${import.meta.env.VITE_BACKEND_URL}/ertragswert`,
+        {
+          anlagengroesse: k,
+          spezifischer_ertrag: se,
+          einspeiseverguetung: v,
+          restlaufzeit: rl,
+        }
+      );
 
-      // Pasar resultados al App.jsx
+      // Guardar resultados locales
+      const jahres = response.data.jahresertrag.toFixed(2);
+      const ertrags = response.data.ertragswert.toFixed(2);
+
+      setJahresertrag(jahres);
+      setErtragswert(ertrags);
+
+      // Pasar resultados al padre (App.jsx) para PDF
       if (onResult) {
         onResult({
-          jahresertrag: response.data.jahresertrag.toFixed(2),
-          ertragswert: response.data.ertragswert.toFixed(2),
+          jahresertrag: jahres,
+          ertragswert: ertrags,
         });
       }
     } catch (error) {
-      console.error(error);
-      alert("Fehler beim Berechnen des Ertragswerts!");
+      console.error("Error Ertragswert:", error);
+      alert(
+        "Fehler beim Berechnen des Ertragswerts! Überprüfen Sie die Backend-URL und Netzwerkverbindung."
+      );
     }
   };
 
@@ -80,8 +94,8 @@ function Ertragswert({ onResult }) {
         <input
           type="number"
           className="form-control"
-          value={vergütung}
-          onChange={(e) => setVergütung(e.target.value)}
+          value={verguetung}
+          onChange={(e) => setVerguetung(e.target.value)}
         />
       </div>
 
@@ -126,5 +140,7 @@ function Ertragswert({ onResult }) {
 }
 
 export default Ertragswert;
+
+
 
 
