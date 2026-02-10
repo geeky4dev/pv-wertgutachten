@@ -7,15 +7,15 @@ import os
 app = Flask(__name__)
 CORS(app)  # Permite solicitudes desde React frontend
 
-# -------------------- Carpetas para uploads y PDFs --------------------
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# -------------------- Rutas absolutas para producción --------------------
+BASE_DIR = os.path.dirname(__file__)
 UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads")
 PDF_FOLDER = os.path.join(BASE_DIR, "pdfs")
-FONTS_FOLDER = os.path.join(BASE_DIR, "fonts")
+FONT_DIR = BASE_DIR
 
+# Crear carpetas si no existen
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(PDF_FOLDER, exist_ok=True)
-os.makedirs(FONTS_FOLDER, exist_ok=True)  # Asegúrate de subir las fuentes aquí
 
 # -------------------- Rutas de prueba --------------------
 @app.route("/", methods=["GET"])
@@ -32,14 +32,9 @@ def buchwert():
     data = request.json
     anschaffung = float(data["anschaffungskosten"])
     alter = float(data["alter"])
-
     abschreibung = anschaffung / 20 * alter
-    buchwert = anschaffung - abschreibung
-
-    return jsonify({
-        "abschreibung": round(abschreibung, 2),
-        "buchwert": round(buchwert, 2)
-    })
+    bw = anschaffung - abschreibung
+    return jsonify({"abschreibung": round(abschreibung, 2), "buchwert": round(bw, 2)})
 
 @app.route("/ertragswert", methods=["POST"])
 def ertragswert():
@@ -48,14 +43,9 @@ def ertragswert():
     se = float(data["spezifischer_ertrag"])
     v = float(data["einspeiseverguetung"])
     rl = float(data["restlaufzeit"])
-
     jahresertrag = kwp * se * v / 100
     ertragswert = jahresertrag * rl
-
-    return jsonify({
-        "jahresertrag": round(jahresertrag, 2),
-        "ertragswert": round(ertragswert, 2)
-    })
+    return jsonify({"jahresertrag": round(jahresertrag, 2), "ertragswert": round(ertragswert, 2)})
 
 @app.route("/restwert", methods=["POST"])
 def restwert():
@@ -63,14 +53,9 @@ def restwert():
     ew = float(data["ertragswert"])
     kostenabschlag = float(data["kostenabschlag"])
     verkaufsabschlag = float(data["verkaufsabschlag"])
-
     zukuenftige_gewinne = ew * (1 - kostenabschlag / 100)
     restwert = zukuenftige_gewinne * (verkaufsabschlag / 100)
-
-    return jsonify({
-        "zukuenftige_gewinne": round(zukuenftige_gewinne, 2),
-        "restwert": round(restwert, 2)
-    })
+    return jsonify({"zukuenftige_gewinne": round(zukuenftige_gewinne, 2), "restwert": round(restwert, 2)})
 
 # -------------------- Endpoint PDF --------------------
 @app.route("/pdf", methods=["POST"])
@@ -85,33 +70,32 @@ def pdf():
         logo_path = os.path.join(UPLOAD_FOLDER, logo.filename)
         logo.save(logo_path)
 
-    # Crear PDF con FPDF2
+    # Crear PDF en /tmp para producción
     pdf_filename = "Wertgutachten_PV.pdf"
-    pdf_path = os.path.join(PDF_FOLDER, pdf_filename)
+    pdf_path = os.path.join("/tmp", pdf_filename)
 
     pdf = FPDF()
     pdf.add_page()
 
-    # -------------------- Fuentes --------------------
-    # Asegúrate de subir estos archivos a backend/fonts/
-    pdf.add_font("DejaVu", "", os.path.join(FONTS_FOLDER, "DejaVuSans.ttf"), uni=True)
-    pdf.add_font("DejaVu", "B", os.path.join(FONTS_FOLDER, "DejaVuSans-Bold.ttf"), uni=True)
+    # Agregar fuentes
+    pdf.add_font("DejaVu", "", os.path.join(FONT_DIR, "DejaVuSans.ttf"), uni=True)
+    pdf.add_font("DejaVu", "B", os.path.join(FONT_DIR, "DejaVuSans-Bold.ttf"), uni=True)
 
-    # -------------------- Título --------------------
+    # Título
     pdf.set_font("DejaVu", "B", 16)
     pdf.cell(0, 10, "Wertgutachten einer PV-Anlage", ln=True, align="C")
     pdf.ln(10)
 
-    # -------------------- Nombre --------------------
+    # Nombre
     pdf.set_font("DejaVu", "", 12)
     pdf.cell(0, 10, f"Name: {name}", ln=True)
     pdf.ln(5)
 
-    # -------------------- Logo --------------------
+    # Logo
     if logo_path:
         pdf.image(logo_path, x=160, y=10, w=30)
 
-    # -------------------- Resultados --------------------
+    # Resultados con separadores
     lines = results.split("\n")
     for line in lines:
         line = line.strip()
@@ -124,17 +108,14 @@ def pdf():
         else:
             pdf.multi_cell(0, 8, line)
 
-    # Guardar PDF
+    # Guardar y enviar PDF
     pdf.output(pdf_path)
-
-    # Enviar PDF como descarga
-    return send_file(os.path.abspath(pdf_path), as_attachment=True)
+    return send_file(pdf_path, as_attachment=True)
 
 # -------------------- Ejecutar Flask --------------------
-# En producción usar Gunicorn
+# En producción usar Gunicorn: render detectará automáticamente
 if __name__ == "__main__" and os.environ.get("FLASK_ENV") != "production":
     app.run(debug=False, port=5001, host="0.0.0.0")
-
 
 
 
