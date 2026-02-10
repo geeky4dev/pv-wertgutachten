@@ -24,7 +24,8 @@ function Restwert({ onResult }) {
     }
 
     try {
-      const response = await axios.post("http://localhost:5001/restwert", {
+      const response = await axios.post(`${import.meta.env.VITE_BACKEND_URL}/restwert`,
+  {
         ertragswert: ew,
         kostenabschlag: ka,
         verkaufsabschlag: va,

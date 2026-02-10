@@ -1,6 +1,3 @@
-// Name, Logo & PDF-Button
-
-// ReportForm.jsx
 import React, { useState } from "react";
 import axios from "axios";
 
@@ -50,10 +47,14 @@ Restwert:
       `;
       formData.append("results", resultsText);
 
-      // Enviar al backend Flask PDF
-      const response = await axios.post("http://localhost:5001/pdf", formData, {
-        responseType: "blob",
-      });
+      // ✅ Enviar al backend Flask PDF
+      const response = await axios.post(
+        `${import.meta.env.VITE_BACKEND_URL}/pdf`, // <-- URL correcta
+        formData,
+        {
+          responseType: "blob", // <-- esto va en la config, no en el body
+        }
+      );
 
       // Descargar PDF automáticamente
       const url = window.URL.createObjectURL(new Blob([response.data]));
@@ -109,4 +110,5 @@ Restwert:
 }
 
 export default ReportForm;
+
 

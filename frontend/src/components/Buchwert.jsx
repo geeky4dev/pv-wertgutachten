@@ -24,7 +24,8 @@ function Buchwert({ onResult }) {
 
     try {
       // Enviar datos al backend Flask
-      const response = await axios.post("http://localhost:5001/buchwert", {
+      const response = await axios.post(`${import.meta.env.VITE_BACKEND_URL}/buchwert`,
+  {
         anschaffungskosten: a,
         alter: al,
       });

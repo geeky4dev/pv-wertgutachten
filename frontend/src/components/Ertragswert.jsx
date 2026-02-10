@@ -26,7 +26,8 @@ function Ertragswert({ onResult }) {
     }
 
     try {
-      const response = await axios.post("http://localhost:5001/ertragswert", {
+      const response = await axios.post(`${import.meta.env.VITE_BACKEND_URL}/buchwert`,
+  {
         anlagengroesse: k,
         spezifischer_ertrag: se,
         einspeiseverguetung: v,
