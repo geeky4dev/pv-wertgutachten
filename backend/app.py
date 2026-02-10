@@ -7,11 +7,15 @@ import os
 app = Flask(__name__)
 CORS(app)  # Permite solicitudes desde React frontend
 
-# Carpetas para uploads y PDFs
-UPLOAD_FOLDER = "uploads"
+# -------------------- Carpetas para uploads y PDFs --------------------
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads")
+PDF_FOLDER = os.path.join(BASE_DIR, "pdfs")
+FONTS_FOLDER = os.path.join(BASE_DIR, "fonts")
+
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-PDF_FOLDER = "pdfs"
 os.makedirs(PDF_FOLDER, exist_ok=True)
+os.makedirs(FONTS_FOLDER, exist_ok=True)  # Asegúrate de subir las fuentes aquí
 
 # -------------------- Rutas de prueba --------------------
 @app.route("/", methods=["GET"])
@@ -20,10 +24,7 @@ def index():
 
 @app.route("/test", methods=["GET"])
 def test():
-    return jsonify({
-        "status": "ok",
-        "message": "Backend läuft"
-    })
+    return jsonify({"status": "ok", "message": "Backend läuft"})
 
 # -------------------- Endpoints de cálculo --------------------
 @app.route("/buchwert", methods=["POST"])
@@ -91,9 +92,10 @@ def pdf():
     pdf = FPDF()
     pdf.add_page()
 
-    # Agregar fuente DejaVu para soporte de € y acentos
-    pdf.add_font("DejaVu", "", "DejaVuSans.ttf", uni=True)
-    pdf.add_font("DejaVu", "B", "DejaVuSans-Bold.ttf", uni=True)
+    # -------------------- Fuentes --------------------
+    # Asegúrate de subir estos archivos a backend/fonts/
+    pdf.add_font("DejaVu", "", os.path.join(FONTS_FOLDER, "DejaVuSans.ttf"), uni=True)
+    pdf.add_font("DejaVu", "B", os.path.join(FONTS_FOLDER, "DejaVuSans-Bold.ttf"), uni=True)
 
     # -------------------- Título --------------------
     pdf.set_font("DejaVu", "B", 16)
@@ -110,7 +112,6 @@ def pdf():
         pdf.image(logo_path, x=160, y=10, w=30)
 
     # -------------------- Resultados --------------------
-    # Agregar líneas horizontales para separar secciones con "----"
     lines = results.split("\n")
     for line in lines:
         line = line.strip()
@@ -126,15 +127,13 @@ def pdf():
     # Guardar PDF
     pdf.output(pdf_path)
 
-    return send_file(pdf_path, as_attachment=True)
+    # Enviar PDF como descarga
+    return send_file(os.path.abspath(pdf_path), as_attachment=True)
 
 # -------------------- Ejecutar Flask --------------------
-# En producción usar Gunicorn o uWSGI
+# En producción usar Gunicorn
 if __name__ == "__main__" and os.environ.get("FLASK_ENV") != "production":
-    # Solo para desarrollo
     app.run(debug=False, port=5001, host="0.0.0.0")
-
-
 
 
 
