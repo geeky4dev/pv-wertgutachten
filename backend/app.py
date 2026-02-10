@@ -2,20 +2,15 @@ from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 from fpdf import FPDF
 import os
+import uuid
 
 # -------------------- Configuración Flask --------------------
 app = Flask(__name__)
-CORS(app)  # Permite solicitudes desde React frontend
+CORS(app)
 
-# -------------------- Rutas absolutas para producción --------------------
+# -------------------- Rutas base --------------------
 BASE_DIR = os.path.dirname(__file__)
-UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads")
-PDF_FOLDER = os.path.join(BASE_DIR, "pdfs")
 FONT_DIR = BASE_DIR
-
-# Crear carpetas si no existen
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-os.makedirs(PDF_FOLDER, exist_ok=True)
 
 # -------------------- Rutas de prueba --------------------
 @app.route("/", methods=["GET"])
@@ -34,7 +29,10 @@ def buchwert():
     alter = float(data["alter"])
     abschreibung = anschaffung / 20 * alter
     bw = anschaffung - abschreibung
-    return jsonify({"abschreibung": round(abschreibung, 2), "buchwert": round(bw, 2)})
+    return jsonify({
+        "abschreibung": round(abschreibung, 2),
+        "buchwert": round(bw, 2)
+    })
 
 @app.route("/ertragswert", methods=["POST"])
 def ertragswert():
@@ -45,7 +43,10 @@ def ertragswert():
     rl = float(data["restlaufzeit"])
     jahresertrag = kwp * se * v / 100
     ertragswert = jahresertrag * rl
-    return jsonify({"jahresertrag": round(jahresertrag, 2), "ertragswert": round(ertragswert, 2)})
+    return jsonify({
+        "jahresertrag": round(jahresertrag, 2),
+        "ertragswert": round(ertragswert, 2)
+    })
 
 @app.route("/restwert", methods=["POST"])
 def restwert():
@@ -55,68 +56,69 @@ def restwert():
     verkaufsabschlag = float(data["verkaufsabschlag"])
     zukuenftige_gewinne = ew * (1 - kostenabschlag / 100)
     restwert = zukuenftige_gewinne * (verkaufsabschlag / 100)
-    return jsonify({"zukuenftige_gewinne": round(zukuenftige_gewinne, 2), "restwert": round(restwert, 2)})
+    return jsonify({
+        "zukuenftige_gewinne": round(zukuenftige_gewinne, 2),
+        "restwert": round(restwert, 2)
+    })
 
-# -------------------- Endpoint PDF --------------------
+# -------------------- Endpoint PDF (CORREGIDO PARA RENDER) --------------------
 @app.route("/pdf", methods=["POST"])
-def pdf():
-    name = request.form.get("name", "Unbekannt")
-    results = request.form.get("results", "")
-    logo = request.files.get("logo", None)
+def generate_pdf():
+    try:
+        data = request.json
 
-    # Guardar logo si existe
-    logo_path = None
-    if logo:
-        logo_path = os.path.join(UPLOAD_FOLDER, logo.filename)
-        logo.save(logo_path)
+        name = data.get("name", "Unbekannt")
+        results = data.get("results", [])
 
-    # Crear PDF en /tmp para producción
-    pdf_filename = "Wertgutachten_PV.pdf"
-    pdf_path = os.path.join("/tmp", pdf_filename)
+        # 👉 Render: SOLO /tmp es escribible
+        filename = f"Wertgutachten_PV_{uuid.uuid4().hex}.pdf"
+        pdf_path = f"/tmp/{filename}"
 
-    pdf = FPDF()
-    pdf.add_page()
+        pdf = FPDF()
+        pdf.add_page()
 
-    # Agregar fuentes
-    pdf.add_font("DejaVu", "", os.path.join(FONT_DIR, "DejaVuSans.ttf"), uni=True)
-    pdf.add_font("DejaVu", "B", os.path.join(FONT_DIR, "DejaVuSans-Bold.ttf"), uni=True)
+        # Fuentes Unicode
+        pdf.add_font("DejaVu", "", os.path.join(FONT_DIR, "DejaVuSans.ttf"), uni=True)
+        pdf.add_font("DejaVu", "B", os.path.join(FONT_DIR, "DejaVuSans-Bold.ttf"), uni=True)
 
-    # Título
-    pdf.set_font("DejaVu", "B", 16)
-    pdf.cell(0, 10, "Wertgutachten einer PV-Anlage", ln=True, align="C")
-    pdf.ln(10)
+        # Título
+        pdf.set_font("DejaVu", "B", 16)
+        pdf.cell(0, 10, "Wertgutachten einer PV-Anlage", ln=True, align="C")
+        pdf.ln(10)
 
-    # Nombre
-    pdf.set_font("DejaVu", "", 12)
-    pdf.cell(0, 10, f"Name: {name}", ln=True)
-    pdf.ln(5)
+        # Nombre
+        pdf.set_font("DejaVu", "", 12)
+        pdf.cell(0, 10, f"Name: {name}", ln=True)
+        pdf.ln(5)
 
-    # Logo
-    if logo_path:
-        pdf.image(logo_path, x=160, y=10, w=30)
+        # Resultados
+        for section in results:
+            pdf.set_font("DejaVu", "B", 12)
+            pdf.cell(0, 8, section["title"], ln=True)
+            pdf.set_font("DejaVu", "", 11)
 
-    # Resultados con separadores
-    lines = results.split("\n")
-    for line in lines:
-        line = line.strip()
-        if line == "----":
-            pdf.ln(2)
-            pdf.set_draw_color(0, 0, 0)
-            pdf.set_line_width(0.5)
-            pdf.line(10, pdf.get_y(), 200, pdf.get_y())
-            pdf.ln(2)
-        else:
-            pdf.multi_cell(0, 8, line)
+            for line in section["values"]:
+                pdf.multi_cell(0, 7, line)
 
-    # Guardar y enviar PDF
-    pdf.output(pdf_path)
-    return send_file(pdf_path, as_attachment=True)
+            pdf.ln(4)
+
+        pdf.output(pdf_path)
+
+        return send_file(
+            pdf_path,
+            as_attachment=True,
+            download_name="pv_wertgutachten.pdf",
+            mimetype="application/pdf"
+        )
+
+    except Exception as e:
+        print("PDF ERROR:", str(e))
+        return jsonify({"error": str(e)}), 500
+
 
 # -------------------- Ejecutar Flask --------------------
-# En producción usar Gunicorn: render detectará automáticamente
-if __name__ == "__main__" and os.environ.get("FLASK_ENV") != "production":
-    app.run(debug=False, port=5001, host="0.0.0.0")
-
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5001)
 
 
 
